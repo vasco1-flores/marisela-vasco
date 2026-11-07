@@ -326,6 +326,19 @@ textarea { min-height: 84px; resize: vertical; }
 .para-etq { display: block; font-family: var(--inscripcion); font-size: .7rem; letter-spacing: .2em; text-transform: uppercase; color: var(--oro); }
 .para-nombre { display: block; font-family: var(--cursiva); font-style: italic; font-weight: 600; font-size: 1.65rem; line-height: 1.2; color: var(--azul); text-wrap: balance; }
 @media (prefers-reduced-motion: no-preference) { .portada .para { animation: entrada 1s cubic-bezier(.22,.61,.36,1) .35s both; } }
+.rsvp-caja { display: grid; gap: 14px; }
+.rsvp-campo label { display: block; font-weight: 600; font-size: .95rem; color: var(--azul); margin-bottom: 6px; }
+.rsvp-campo input { width: 100%; font: inherit; padding: 12px 14px; border: 1px solid #b6a480; border-radius: 6px; background: #fffdf7; color: var(--tinta); }
+.rsvp-campo[hidden] { display: none; }
+.rsvp-pregunta { font-family: var(--cursiva); font-style: italic; font-weight: 600; font-size: 1.5rem; text-align: center; color: var(--azul); margin: 0; }
+.rsvp-decide { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.btn-resp { font: inherit; font-weight: 600; font-size: 1rem; padding: 14px 10px; min-height: 54px; border-radius: 6px; cursor: pointer; border: 1px solid var(--azul); }
+.btn-resp.si { background: var(--azul); color: var(--oro-claro); border-color: var(--oro); }
+.btn-resp.no { background: transparent; color: var(--azul); }
+.btn-resp:disabled { opacity: .55; cursor: wait; }
+.rsvp-resultado { margin: 0; text-align: center; font-size: .95rem; min-height: 1.4em; color: var(--bosque); font-weight: 600; }
+.rsvp-resultado.error { color: var(--burdeos); }
+.rsvp-frase-wa { font-size: 1.2rem; margin-top: 26px; font-weight: 500; }
 footer { text-align: center; padding: 18px 28px 48px; color: var(--tinta-suave); font-size: .92rem; }
 footer .lema { font-style: italic; color: var(--azul); margin: 0 0 6px; }
 footer .firma { font-family: var(--script); font-size: 2rem; color: var(--azul); margin: 0; line-height: 1.1; }
@@ -414,7 +427,19 @@ footer .firma { font-family: var(--script); font-size: 2rem; color: var(--azul);
     <h2 id="t-rsvp">Confirmar asistencia</h2>
     <p class="sub">Plazo: hasta el 15 de noviembre de 2026.</p>
     <p id="estado" class="rsvp-estado abierto">Confirmaciones abiertas</p>
-    <p class="rsvp-frase">Confirmar al WhatsApp</p>
+    <div class="rsvp-caja">
+      <div id="campo-nombre" class="rsvp-campo" hidden>
+        <label for="nombre-rsvp">Su nombre</label>
+        <input type="text" id="nombre-rsvp" autocomplete="name" placeholder="Nombre y apellido">
+      </div>
+      <p class="rsvp-pregunta">¿Podrá asistir?</p>
+      <div class="rsvp-decide">
+        <button type="button" class="btn-resp si" id="btn-si">Confirmo mi asistencia</button>
+        <button type="button" class="btn-resp no" id="btn-no">No podré asistir</button>
+      </div>
+      <p class="rsvp-resultado" id="rsvp-resultado" aria-live="polite"></p>
+    </div>
+    <p class="rsvp-frase rsvp-frase-wa">También puede avisar por WhatsApp</p>
     <div class="rsvp-botones">
       <a class="btn-wa" href="#" data-w="novio">Novio</a>
       <a class="btn-wa" href="#" data-w="novia">Novia</a>
@@ -469,6 +494,35 @@ footer .firma { font-family: var(--script); font-size: 2rem; color: var(--azul);
   var mensaje = para
     ? "Hola, confirmo asistencia a la boda de Marisela y Vasco. Invitación de: " + para + "."
     : "Hola, quiero confirmar mi asistencia a la boda de Marisela y Vasco.";
+
+  // Confirmación: se envía al formulario de Google (queda registrada en la planilla)
+  var FORM = {
+    url: "https://docs.google.com/forms/d/e/1FAIpQLSeo4j3Zn7kCSAdoMXt49UqlIRDUL35pTYi5_KlkEkohgjfOjQ/formResponse",
+    campoNombre: "entry.804693497",
+    campoRespuesta: "entry.2007362487",
+    opcionSi: "Sí, asistire",   // texto idéntico a la opción del formulario
+    opcionNo: "No podre"        // texto idéntico a la opción del formulario
+  };
+  if (!para) { $("campo-nombre").hidden = false; }
+  var btnSi = $("btn-si"), btnNo = $("btn-no"), resultado = $("rsvp-resultado");
+  function mostrar(texto, error) { resultado.textContent = texto; resultado.className = "rsvp-resultado" + (error ? " error" : ""); }
+  function enviar(asiste) {
+    var nombre = para || $("nombre-rsvp").value.replace(/\s+/g, " ").trim();
+    if (nombre.length < 2) { mostrar("Escriba su nombre antes de responder.", true); $("nombre-rsvp").focus(); return; }
+    btnSi.disabled = true; btnNo.disabled = true; mostrar("Enviando…", false);
+    var datos = new URLSearchParams();
+    datos.append(FORM.campoNombre, nombre);
+    datos.append(FORM.campoRespuesta, asiste ? FORM.opcionSi : FORM.opcionNo);
+    fetch(FORM.url, { method: "POST", mode: "no-cors", body: datos }).then(function () {
+      mostrar(asiste ? "¡Gracias! Registramos su confirmación. Los esperamos." : "Gracias por avisarnos. Registramos su respuesta. Si cambia de opinión, puede responder de nuevo.", false);
+      btnSi.disabled = false; btnNo.disabled = false;
+    }, function () {
+      mostrar("No se pudo enviar. Revise su conexión e intente de nuevo, o avise por WhatsApp.", true);
+      btnSi.disabled = false; btnNo.disabled = false;
+    });
+  }
+  btnSi.addEventListener("click", function () { enviar(true); });
+  btnNo.addEventListener("click", function () { enviar(false); });
 
   // Los números no aparecen en el texto de la página: se arman recién al tocar el botón.
   var W = { novio: "NTY5NjI4MjEzMDA=", novia: "NTY5ODY2MzI3MzI=" };
